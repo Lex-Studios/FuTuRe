@@ -208,7 +208,7 @@ input {
   max-width: 100%;
 }
 
-input:focus {
+input:focus-visible {
   outline: none;
   border-color: var(--primary);
 }
@@ -1474,7 +1474,7 @@ kbd {
   outline: none;
 }
 .fu-dropzone:hover,
-.fu-dropzone:focus {
+.fu-dropzone:focus-visible {
   border-color: var(--primary);
 }
 .fu-dropzone--active {
@@ -1781,7 +1781,7 @@ kbd {
 }
 
 .xlm-info-btn:hover,
-.xlm-info-btn:focus {
+.xlm-info-btn:focus-visible {
   opacity: 1;
   background: none;
 }

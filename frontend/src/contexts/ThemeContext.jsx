@@ -13,13 +13,15 @@ const THEMES = {
 };
 
 function getInitialTheme() {
+  const systemDark = window.matchMedia?.('(prefers-color-scheme: dark)').matches;
+  const systemDefault = systemDark ? THEMES.dark : THEMES.light;
   try {
     const saved = window.localStorage.getItem(THEME_KEY);
     if (saved === THEMES.dark || saved === THEMES.light) return saved;
-    return window.matchMedia?.('(prefers-color-scheme: dark)').matches ? THEMES.dark : THEMES.light;
   } catch {
-    return THEMES.light;
+    // ignore localStorage failures in private mode
   }
+  return systemDefault;
 }
 
 export function ThemeProvider({ children }) {
