@@ -17,7 +17,17 @@ function fmt(dateStr) {
   return new Date(dateStr).toLocaleString(undefined, { dateStyle: 'medium', timeStyle: 'short' });
 }
 
-function TxRow({ tx, onClick, onRetry }) {
+function TxSkeletonRow() {
+  return (
+    <div className="tx-row tx-skeleton" aria-hidden="true" style={{ display: 'flex', gap: 12, alignItems: 'center', padding: '10px 0' }}>
+      <span className="tx-skeleton-block" style={{ width: 16, height: 16, borderRadius: 4 }} />
+      <span className="tx-skeleton-block" style={{ width: 80, height: 14, borderRadius: 4 }} />
+      <span className="tx-skeleton-block" style={{ width: 100, height: 14, borderRadius: 4 }} />
+      <span className="tx-skeleton-block" style={{ width: 120, height: 14, borderRadius: 4, marginLeft: 'auto' }} />
+      <span className="tx-skeleton-block" style={{ width: 16, height: 16, borderRadius: 4 }} />
+    </div>
+  );
+}
 function csvEscape(val) {
   const s = val == null ? '' : String(val);
   return s.includes(',') || s.includes('"') || s.includes('\n') ? `"${s.replace(/"/g, '""')}"` : s;
@@ -304,10 +314,26 @@ export function TransactionHistory({ publicKey }) {
             <button className="tx-page-btn" onClick={() => fetchPage(cursors[cursors.length - 1] ?? null)}>↺ Retry</button>
           </motion.div>
         )}
-        {!error && loaded && (
+        {!error && loading && (
+          <motion.div key="skeleton" initial={{ opacity: 0 }} animate={{ opacity: 1 }} exit={{ opacity: 0 }} aria-label="Loading transactions" aria-busy="true">
+            {Array.from({ length: 5 }, (_, i) => <TxSkeletonRow key={i} />)}
+          </motion.div>
+        )}
+        {!error && !loading && loaded && (
           <motion.div key="list" initial={{ opacity: 0 }} animate={{ opacity: 1 }} exit={{ opacity: 0 }}>
             {txs.length === 0 ? (
-              <p className="tx-empty" role="status">No transactions found.</p>
+              <div className="tx-empty" role="status" style={{ display: 'flex', flexDirection: 'column', alignItems: 'center', gap: 12, padding: '24px 0' }}>
+                <svg width="80" height="80" viewBox="0 0 80 80" fill="none" aria-hidden="true" xmlns="http://www.w3.org/2000/svg">
+                  <circle cx="40" cy="40" r="38" stroke="#e5e7eb" strokeWidth="2" />
+                  <rect x="22" y="28" width="36" height="6" rx="3" fill="#e5e7eb" />
+                  <rect x="22" y="38" width="28" height="6" rx="3" fill="#e5e7eb" />
+                  <rect x="22" y="48" width="20" height="6" rx="3" fill="#e5e7eb" />
+                  <circle cx="58" cy="54" r="10" fill="#f3f4f6" stroke="#e5e7eb" strokeWidth="2" />
+                  <line x1="55" y1="54" x2="61" y2="54" stroke="#9ca3af" strokeWidth="2" strokeLinecap="round" />
+                  <line x1="58" y1="51" x2="58" y2="57" stroke="#9ca3af" strokeWidth="2" strokeLinecap="round" />
+                </svg>
+                <p style={{ margin: 0, fontSize: 14, color: '#6b7280' }}>No transactions yet — send your first payment above.</p>
+              </div>
             ) : (
               <>
                 <div className="tx-list" role="list" aria-label="Transactions">

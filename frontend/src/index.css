@@ -1222,6 +1222,24 @@ kbd {
   padding: 12px 0;
 }
 
+/* Skeleton loader shimmer */
+@keyframes tx-shimmer {
+  0% { background-position: -400px 0; }
+  100% { background-position: 400px 0; }
+}
+
+.tx-skeleton-block {
+  display: inline-block;
+  background: linear-gradient(90deg, #e5e7eb 25%, #f3f4f6 50%, #e5e7eb 75%);
+  background-size: 800px 100%;
+  animation: tx-shimmer 1.4s infinite linear;
+}
+
+.dark .tx-skeleton-block {
+  background: linear-gradient(90deg, #374151 25%, #4b5563 50%, #374151 75%);
+  background-size: 800px 100%;
+}
+
 .tx-pagination {
   display: flex;
   gap: 8px;
