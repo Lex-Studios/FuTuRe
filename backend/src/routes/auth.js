@@ -6,8 +6,29 @@ import { signAccessToken, signRefreshToken, verifyToken } from '../auth/tokens.j
 import { requireAuth } from '../middleware/auth.js';
 import { consumePendingCredentials } from '../recovery/recoveryStore.js';
 import { createRateLimiter } from '../middleware/rateLimiter.js';
+import { getConfig } from '../config/env.js';
 
 const router = express.Router();
+
+function setRefreshTokenCookie(res, refreshToken) {
+  const config = getConfig();
+  const isProduction = config.meta.appEnv === 'production';
+
+  res.cookie('refreshToken', refreshToken, {
+    httpOnly: true,
+    secure: isProduction,
+    sameSite: 'strict',
+    maxAge: 7 * 24 * 60 * 60 * 1000, // 7 days
+    path: '/api/auth',
+  });
+}
+
+// Stricter rate limit for login endpoint (5 req/15min)
+const authRateLimiter = createRateLimiter({
+  windowMs: 15 * 60 * 1000,
+  max: 5,
+  message: 'Too many login attempts, please try again later.',
+});
 
 const validateBody = (req, res, next) => {
   const errors = validationResult(req);
@@ -54,7 +75,7 @@ const userRules = [
  *       422:
  *         description: Validation error
  */
-router.post('/register', userRules, validateBody, async (req, res) => {
+router.post('/register', authRateLimiter, userRules, validateBody, async (req, res) => {
   try {
     const { username, password } = req.body;
     const passwordHash = await hashPassword(password);
@@ -93,7 +114,6 @@ router.post('/register', userRules, validateBody, async (req, res) => {
  *               type: object
  *               properties:
  *                 accessToken: { type: string }
- *                 refreshToken: { type: string }
  *                 recovered: { type: boolean }
  *       401:
  *         description: Invalid credentials
@@ -104,16 +124,7 @@ router.post('/register', userRules, validateBody, async (req, res) => {
  *       422:
  *         description: Validation error
  */
-router.post('/login', userRules, validateBody, async (req, res) => {
-// Stricter rate limit for login endpoint (10 req/min)
-const loginRateLimiter = createRateLimiter({
-  windowMs: 60000,
-  max: 10,
-  message: 'Too many login attempts, please try again later.',
-});
-
-// POST /api/auth/login
-router.post('/login', loginRateLimiter, userRules, validateBody, async (req, res) => {
+router.post('/login', authRateLimiter, userRules, validateBody, async (req, res) => {
   const { username, password } = req.body;
   const user = findUser(username);
   if (!user) return res.status(401).json({ error: 'Invalid credentials' });
@@ -125,9 +136,10 @@ router.post('/login', loginRateLimiter, userRules, validateBody, async (req, res
     if (valid) {
       updateUserPassword(user.id, recovered.passwordHash);
       const payload = { sub: user.id, username: user.username };
+      const refreshToken = signRefreshToken(payload);
+      setRefreshTokenCookie(res, refreshToken);
       return res.json({
         accessToken: signAccessToken(payload),
-        refreshToken: signRefreshToken(payload),
         recovered: true,
       });
     }
@@ -137,9 +149,10 @@ router.post('/login', loginRateLimiter, userRules, validateBody, async (req, res
     return res.status(401).json({ error: 'Invalid credentials' });
   }
   const payload = { sub: user.id, username: user.username };
+  const refreshToken = signRefreshToken(payload);
+  setRefreshTokenCookie(res, refreshToken);
   res.json({
     accessToken: signAccessToken(payload),
-    refreshToken: signRefreshToken(payload),
   });
 });
 
@@ -150,16 +163,6 @@ router.post('/login', loginRateLimiter, userRules, validateBody, async (req, res
  *     summary: Refresh access token
  *     tags: [Auth]
  *     security: []
- *     requestBody:
- *       required: true
- *       content:
- *         application/json:
- *           schema:
- *             type: object
- *             required: [refreshToken]
- *             properties:
- *               refreshToken:
- *                 type: string
  *     responses:
  *       200:
  *         description: New access token
@@ -169,16 +172,16 @@ router.post('/login', loginRateLimiter, userRules, validateBody, async (req, res
  *               type: object
  *               properties:
  *                 accessToken: { type: string }
- *       400:
- *         description: refreshToken missing
  *       401:
  *         description: Invalid or expired refresh token
  */
 router.post('/refresh', (req, res) => {
-  const { refreshToken } = req.body;
-  if (!refreshToken) return res.status(400).json({ error: 'refreshToken required' });
+  const refreshToken = req.cookies?.refreshToken;
+  if (!refreshToken) return res.status(401).json({ error: 'Refresh token missing or expired' });
   try {
     const { sub, username } = verifyToken(refreshToken);
+    const newRefreshToken = signRefreshToken({ sub, username });
+    setRefreshTokenCookie(res, newRefreshToken);
     res.json({ accessToken: signAccessToken({ sub, username }) });
   } catch {
     res.status(401).json({ error: 'Invalid or expired refresh token' });
